@@ -40,10 +40,6 @@ def obtener_seller_id(url):
 def obtener_datos_vendedor(seller_id):
     return requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
 
-def obtener_productos(seller_id):
-    url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=100"
-    return requests.get(url).json().get("results", [])
-
 def obtener_total_productos_activos(seller_id):
     url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active"
     res = requests.get(url).json()
@@ -136,35 +132,42 @@ def mostrar_datos(datos, seller_id):
                     ax.set_ylim(0, 100)
                     st.pyplot(fig)
 
-def mostrar_productos(productos):
-    if not productos:
-        return
-    st.subheader("🛒 Productos Activos")
-    df = pd.DataFrame([{
-        "Título": p["title"],
-        "Precio": p["price"],
-        "Stock": p.get("available_quantity", 0),
-        "Categoría": p["category_id"],
-        "Link": p["permalink"]
-    } for p in productos])
-    st.dataframe(df)
-    st.markdown("#### 💰 Productos extremos")
-    st.write("Más barato:", df.sort_values("Precio").head(1))
-    st.write("Más caro:", df.sort_values("Precio", ascending=False).head(1))
-    st.markdown("#### 🏷️ Categorías más comunes")
-    st.write(df["Categoría"].value_counts().head(5))
+def mostrar_productos_desde_ids(seller_id):
+    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
+    res = requests.get(url).json()
+    ids = res.get("results", [])
 
-# 🔄 EJECUCIÓN
+    if not ids:
+        st.info("Este vendedor no tiene productos activos visibles.")
+        return
+
+    productos = []
+    for pid in ids:
+        try:
+            item = requests.get(f"https://api.mercadolibre.com/items/{pid}").json()
+            productos.append({
+                "Título": item.get("title", ""),
+                "Precio": item.get("price", 0),
+                "Stock": item.get("available_quantity", 0),
+                "Link": f"[Ver producto]({item.get('permalink', '')})"
+            })
+        except:
+            continue
+
+    if productos:
+        st.subheader("🛒 Productos activos (por ID)")
+        df = pd.DataFrame(productos)
+        st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+# 🔄 EJECUCIÓN PRINCIPAL
 if url_producto:
     seller_id = obtener_seller_id(url_producto)
     if seller_id:
         datos = obtener_datos_vendedor(seller_id)
-        productos = obtener_productos(seller_id)
         promos = obtener_promos(seller_id)
         st.success("✅ Vendedor encontrado")
         mostrar_datos(datos, seller_id)
-        if productos:
-            mostrar_productos(productos)
+        mostrar_productos_desde_ids(seller_id)
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
