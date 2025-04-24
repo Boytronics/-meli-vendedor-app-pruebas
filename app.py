@@ -109,6 +109,8 @@ def mostrar_datos(datos):
             metrics = rep.get("metrics", {})
             if metrics:
                 st.markdown("#### 📊 Métricas últimas 60 días:")
+                if metrics.get("sales", {}).get("completed"):
+                    texto_personalizado("📈 Ventas en 60 días:", metrics["sales"]["completed"])
                 tasas = {
                     "🛑 Reclamos": metrics.get("claims", {}).get("rate", 0),
                     "⏳ Demoras": metrics.get("delayed_handling_time", {}).get("rate", 0),
