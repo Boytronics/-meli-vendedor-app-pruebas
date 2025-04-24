@@ -4,6 +4,8 @@ import re
 from bs4 import BeautifulSoup
 import pandas as pd
 import matplotlib.pyplot as plt
+import collections
+import string
 
 st.set_page_config(page_title="Perfil de Vendedor - Mercado Libre", layout="wide")
 st.title("🔍 Perfil Completo del Vendedor en Mercado Libre")
@@ -56,7 +58,6 @@ def texto_personalizado(label, valor):
         <span style='color:#00FF00; font-family:monospace; font-size:22px;'> {valor}</span>
     </div>
     """, unsafe_allow_html=True)
-
 def mostrar_datos(datos, seller_id):
     col1, col2 = st.columns(2)
 
@@ -73,13 +74,10 @@ def mostrar_datos(datos, seller_id):
             texto_personalizado("🏆 Puntos:", datos["points"])
         if "status" in datos:
             texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
-
         total_activos = obtener_total_productos_activos(seller_id)
         if total_activos:
             texto_personalizado("🛒 Productos activos:", total_activos)
-
         st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
-
         if datos.get("eshop"):
             texto_personalizado("🏪 Tiene E-Shop:", "✅ Sí")
             texto_personalizado("🛍️ Nombre E-Shop:", datos["eshop"].get("nick_name"))
@@ -95,7 +93,6 @@ def mostrar_datos(datos, seller_id):
                 texto_personalizado("🏅 Nivel reputación:", rep["level_id"])
             if rep.get("power_seller_status"):
                 texto_personalizado("💼 MercadoLíder:", rep["power_seller_status"])
-
             trans = rep.get("transactions", {})
             if trans:
                 if trans.get("total"): texto_personalizado("📦 Ventas totales:", trans["total"])
@@ -109,7 +106,6 @@ def mostrar_datos(datos, seller_id):
                         texto_personalizado("😐 Neutrales:", f"{round(ratings['neutral']*100, 2)}%")
                     if ratings.get("negative") is not None:
                         texto_personalizado("👎 Negativas:", f"{round(ratings['negative']*100, 2)}%")
-
             metrics = rep.get("metrics", {})
             if metrics:
                 st.markdown("#### 📊 Métricas últimas 60 días:")
@@ -123,7 +119,6 @@ def mostrar_datos(datos, seller_id):
                 for k, v in tasas.items():
                     if v > 0:
                         texto_personalizado(k + ":", f"{round(v * 100, 2)}%")
-
                 if any(v > 0 for v in tasas.values()):
                     st.markdown("##### 📉 Gráfico:")
                     fig, ax = plt.subplots()
@@ -136,11 +131,9 @@ def mostrar_productos_desde_ids(seller_id):
     url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
     res = requests.get(url).json()
     ids = res.get("results", [])
-
     if not ids:
         st.info("Este vendedor no tiene productos activos visibles.")
         return
-
     productos = []
     for pid in ids:
         try:
@@ -153,27 +146,10 @@ def mostrar_productos_desde_ids(seller_id):
             })
         except:
             continue
-
     if productos:
         st.subheader("🛒 Productos activos (por ID)")
         df = pd.DataFrame(productos)
         st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-# 🔄 EJECUCIÓN PRINCIPAL
-if url_producto:
-    seller_id = obtener_seller_id(url_producto)
-    if seller_id:
-        datos = obtener_datos_vendedor(seller_id)
-        promos = obtener_promos(seller_id)
-        st.success("✅ Vendedor encontrado")
-        mostrar_datos(datos, seller_id)
-        mostrar_productos_desde_ids(seller_id)
-        if promos.get("available"):
-            st.subheader("💸 Promociones pagadas")
-            st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
-
-import collections
-import string
 
 def analizar_productos_activos(seller_id):
     url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
@@ -181,7 +157,6 @@ def analizar_productos_activos(seller_id):
     ids = res.get("results", [])
     if not ids:
         return
-
     productos = []
     for pid in ids:
         try:
@@ -196,14 +171,9 @@ def analizar_productos_activos(seller_id):
             })
         except:
             continue
-
     if not productos:
         return
-
     st.subheader("📊 Análisis general del catálogo")
-
-    # 1. Palabras clave más comunes en títulos
-    st.markdown("#### 🧠 Palabras más frecuentes en los títulos")
     all_words = []
     for p in productos:
         title = p["title"].lower()
@@ -213,7 +183,6 @@ def analizar_productos_activos(seller_id):
     comunes = collections.Counter(all_words).most_common(10)
     st.write(pd.DataFrame(comunes, columns=["Palabra", "Repeticiones"]))
 
-    # 2. Resumen de precios y stock
     st.markdown("#### 💰 Estadísticas de precios y stock")
     precios = [p["price"] for p in productos]
     stocks = [p["stock"] for p in productos]
@@ -224,12 +193,10 @@ def analizar_productos_activos(seller_id):
     }, index=["Precio", "Stock"])
     st.table(resumen)
 
-    # 3. Categorías más comunes
     st.markdown("#### 🏷️ Categorías más usadas")
     cats = collections.Counter([p["category_id"] for p in productos]).most_common(5)
     st.write(pd.DataFrame(cats, columns=["Categoría ID", "Cantidad"]))
 
-    # 4. Productos con bajo stock
     st.markdown("#### 🚨 Productos con stock ≤ 5")
     bajos = [p for p in productos if p["stock"] <= 5]
     if bajos:
@@ -240,4 +207,18 @@ def analizar_productos_activos(seller_id):
         } for b in bajos]))
     else:
         st.success("🎉 No hay productos con stock bajo.")
+
+# EJECUCIÓN PRINCIPAL
+if url_producto:
+    seller_id = obtener_seller_id(url_producto)
+    if seller_id:
+        datos = obtener_datos_vendedor(seller_id)
+        promos = obtener_promos(seller_id)
+        st.success("✅ Vendedor encontrado")
+        mostrar_datos(datos, seller_id)
+        mostrar_productos_desde_ids(seller_id)
+        analizar_productos_activos(seller_id)
+        if promos.get("available"):
+            st.subheader("💸 Promociones pagadas")
+            st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
 
