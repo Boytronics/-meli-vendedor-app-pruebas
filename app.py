@@ -45,54 +45,59 @@ def obtener_datos_vendedor(seller_id):
         st.error(f"Error al obtener los datos del vendedor: {e}")
         return None
 
-def texto_verde(label, valor):
-    st.markdown(f"<div style='font-size:22px; color:#00FF00;'><strong>{label}</strong> {valor}</div>", unsafe_allow_html=True)
+def texto_personalizado(label, valor):
+    st.markdown(f"""
+    <div style='font-size:18px; color:white; margin-bottom:4px;'>
+        {label}
+        <span style='color:#00FF00; font-family:monospace; font-size:22px;'> {valor}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 def mostrar_datos(datos):
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("📄 Datos básicos")
-        texto_verde("👤 Nickname:", datos.get("nickname", "N/A"))
+        texto_personalizado("👤 Nickname:", datos.get("nickname", "N/A"))
         fecha = datos.get("registration_date", "")
-        texto_verde("🗓️ Registro:", fecha[:10] if fecha else "No disponible")
-        texto_verde("🌎 País:", datos.get("country_id", ""))
-        texto_verde("📍 Estado/Ciudad:",
+        texto_personalizado("🗓️ Registro:", fecha[:10] if fecha else "No disponible")
+        texto_personalizado("🌎 País:", datos.get("country_id", ""))
+        texto_personalizado("📍 Estado/Ciudad:",
                      f"{datos.get('address', {}).get('state', '')} / {datos.get('address', {}).get('city', '')}")
-        st.markdown(f"[🔗 Ver perfil](https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')})", unsafe_allow_html=True)
+        st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
 
         if datos.get("eshop"):
-            texto_verde("🏪 Tiene E-Shop:", "✅ Sí")
-            texto_verde("🛍️ Nombre E-Shop:", datos["eshop"].get("nick_name"))
+            texto_personalizado("🏪 Tiene E-Shop:", "✅ Sí")
+            texto_personalizado("🛍️ Nombre E-Shop:", datos["eshop"].get("nick_name"))
             logo = datos["eshop"].get("eshop_logo_url")
             if logo:
                 st.image(logo, width=100)
         else:
-            texto_verde("🏪 Tiene E-Shop:", "❌ No")
+            texto_personalizado("🏪 Tiene E-Shop:", "❌ No")
 
     with col2:
         st.subheader("📈 Reputación y desempeño")
         rep = datos.get("seller_reputation", {})
-        texto_verde("🏅 Nivel reputación:", rep.get("level_id", "N/A"))
-        texto_verde("💼 MercadoLíder:", rep.get("power_seller_status", "N/A"))
+        texto_personalizado("🏅 Nivel reputación:", rep.get("level_id", "N/A"))
+        texto_personalizado("💼 MercadoLíder:", rep.get("power_seller_status", "N/A"))
 
         trans = rep.get("transactions", {})
-        texto_verde("📦 Ventas totales:", trans.get("total", 0))
-        texto_verde("✅ Completadas:", trans.get("completed", 0))
-        texto_verde("❌ Canceladas:", trans.get("canceled", 0))
+        texto_personalizado("📦 Ventas totales:", trans.get("total", 0))
+        texto_personalizado("✅ Completadas:", trans.get("completed", 0))
+        texto_personalizado("❌ Canceladas:", trans.get("canceled", 0))
 
         ratings = trans.get("ratings", {})
-        texto_verde("👍 Positivas:", f"{round(ratings.get('positive', 0) * 100, 2)}%")
-        texto_verde("😐 Neutrales:", f"{round(ratings.get('neutral', 0) * 100, 2)}%")
-        texto_verde("👎 Negativas:", f"{round(ratings.get('negative', 0) * 100, 2)}%")
+        texto_personalizado("👍 Positivas:", f"{round(ratings.get('positive', 0) * 100, 2)}%" if ratings else "No disponible")
+        texto_personalizado("😐 Neutrales:", f"{round(ratings.get('neutral', 0) * 100, 2)}%" if ratings else "No disponible")
+        texto_personalizado("👎 Negativas:", f"{round(ratings.get('negative', 0) * 100, 2)}%" if ratings else "No disponible")
 
         metrics = rep.get("metrics", {})
         if metrics:
-            st.markdown("<h5 style='margin-top:20px;'>📊 Últimos 60 días:</h5>", unsafe_allow_html=True)
-            texto_verde("🕒 Ventas completadas:", metrics.get("sales", {}).get("completed", 0))
-            texto_verde("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0) * 100, 2)}%")
-            texto_verde("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0) * 100, 2)}%")
-            texto_verde("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0) * 100, 2)}%")
+            st.markdown("<h5 style='margin-top:20px; color:white;'>📊 Últimos 60 días:</h5>", unsafe_allow_html=True)
+            texto_personalizado("🕒 Ventas completadas:", metrics.get("sales", {}).get("completed", 0))
+            texto_personalizado("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0) * 100, 2)}%")
+            texto_personalizado("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0) * 100, 2)}%")
+            texto_personalizado("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0) * 100, 2)}%")
 
 # Ejecución principal
 if url_producto:
@@ -106,4 +111,3 @@ if url_producto:
             st.warning("No se pudo obtener la información del vendedor.")
     else:
         st.warning("No se encontró el vendedor.")
-
