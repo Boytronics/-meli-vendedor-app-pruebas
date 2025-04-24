@@ -3,7 +3,6 @@ import requests
 import re
 from bs4 import BeautifulSoup
 import pandas as pd
-from collections import Counter
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Perfil de Vendedor - Mercado Libre", layout="wide")
@@ -39,10 +38,7 @@ def obtener_seller_id(url):
     return None
 
 def obtener_datos_vendedor(seller_id):
-    try:
-        return requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
-    except:
-        return {}
+    return requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
 
 def obtener_productos(seller_id):
     url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=100"
@@ -66,11 +62,16 @@ def mostrar_datos(datos):
     with col1:
         st.subheader("📄 Datos básicos")
         texto_personalizado("👤 Nickname:", datos.get("nickname", "N/A"))
-        texto_personalizado("🗓️ Registro:", datos.get("registration_date", "")[:10])
+        if datos.get("registration_date"):
+            texto_personalizado("🗓️ Registro:", datos["registration_date"][:10])
         texto_personalizado("🌎 País:", datos.get("country_id", ""))
-        texto_personalizado("📍 Estado/Ciudad:", f"{datos.get('address', {}).get('state', '')} / {datos.get('address', {}).get('city', '')}")
-        texto_personalizado("🏆 Puntos:", datos.get("points", "N/D"))
-        texto_personalizado("🟢 Estado cuenta:", datos.get("status", {}).get("site_status", "Desconocido"))
+        if "address" in datos:
+            texto_personalizado("📍 Estado/Ciudad:",
+                f"{datos['address'].get('state', '')} / {datos['address'].get('city', '')}")
+        if "points" in datos:
+            texto_personalizado("🏆 Puntos:", datos["points"])
+        if "status" in datos:
+            texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
         st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
 
         if datos.get("eshop"):
@@ -83,45 +84,52 @@ def mostrar_datos(datos):
             texto_personalizado("🏪 Tiene E-Shop:", "❌ No")
 
     with col2:
-        st.subheader("📈 Reputación y desempeño")
         rep = datos.get("seller_reputation", {})
-        trans = rep.get("transactions", {})
-        ratings = trans.get("ratings", {})
-        texto_personalizado("🏅 Nivel reputación:", rep.get("level_id", "N/A"))
-        texto_personalizado("💼 MercadoLíder:", rep.get("power_seller_status", "N/A"))
-        texto_personalizado("📦 Ventas totales:", trans.get("total", 0))
-        texto_personalizado("✅ Completadas:", trans.get("completed", 0))
-        texto_personalizado("❌ Canceladas:", trans.get("canceled", 0))
-        texto_personalizado("👍 Positivas:", f"{round(ratings.get('positive', 0)*100, 2)}%" if ratings else "N/A")
-        texto_personalizado("😐 Neutrales:", f"{round(ratings.get('neutral', 0)*100, 2)}%" if ratings else "N/A")
-        texto_personalizado("👎 Negativas:", f"{round(ratings.get('negative', 0)*100, 2)}%" if ratings else "N/A")
+        if rep:
+            st.subheader("📈 Reputación y desempeño")
+            if rep.get("level_id"):
+                texto_personalizado("🏅 Nivel reputación:", rep["level_id"])
+            if rep.get("power_seller_status"):
+                texto_personalizado("💼 MercadoLíder:", rep["power_seller_status"])
 
-        st.markdown("#### 📊 Métricas últimas 60 días:")
-        metrics = rep.get("metrics", {})
-        texto_personalizado("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0)*100, 2)}%")
-        texto_personalizado("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0)*100, 2)}%")
-        texto_personalizado("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0)*100, 2)}%")
+            trans = rep.get("transactions", {})
+            if trans:
+                if trans.get("total"): texto_personalizado("📦 Ventas totales:", trans["total"])
+                if trans.get("completed"): texto_personalizado("✅ Completadas:", trans["completed"])
+                if trans.get("canceled"): texto_personalizado("❌ Canceladas:", trans["canceled"])
+                ratings = trans.get("ratings", {})
+                if ratings:
+                    if ratings.get("positive") is not None:
+                        texto_personalizado("👍 Positivas:", f"{round(ratings['positive']*100, 2)}%")
+                    if ratings.get("neutral") is not None:
+                        texto_personalizado("😐 Neutrales:", f"{round(ratings['neutral']*100, 2)}%")
+                    if ratings.get("negative") is not None:
+                        texto_personalizado("👎 Negativas:", f"{round(ratings['negative']*100, 2)}%")
 
-        # Gráfico de barras
-        st.markdown("##### 📉 Gráfico:")
-        fig, ax = plt.subplots()
-        labels = ['Reclamos', 'Demoras', 'Cancelaciones']
-        valores = [
-            metrics.get("claims", {}).get("rate", 0) * 100,
-            metrics.get("delayed_handling_time", {}).get("rate", 0) * 100,
-            metrics.get("cancellations", {}).get("rate", 0) * 100
-        ]
-        ax.bar(labels, valores, color='limegreen')
-        ax.set_ylabel('%')
-        ax.set_ylim(0, 100)
-        st.pyplot(fig)
+            metrics = rep.get("metrics", {})
+            if metrics:
+                st.markdown("#### 📊 Métricas últimas 60 días:")
+                tasas = {
+                    "🛑 Reclamos": metrics.get("claims", {}).get("rate", 0),
+                    "⏳ Demoras": metrics.get("delayed_handling_time", {}).get("rate", 0),
+                    "❌ Cancelaciones": metrics.get("cancellations", {}).get("rate", 0)
+                }
+                for k, v in tasas.items():
+                    if v > 0:
+                        texto_personalizado(k + ":", f"{round(v * 100, 2)}%")
+
+                if any(v > 0 for v in tasas.values()):
+                    st.markdown("##### 📉 Gráfico:")
+                    fig, ax = plt.subplots()
+                    ax.bar(tasas.keys(), [v * 100 for v in tasas.values()], color='limegreen')
+                    ax.set_ylabel('%')
+                    ax.set_ylim(0, 100)
+                    st.pyplot(fig)
 
 def mostrar_productos(productos):
-    st.subheader("🛒 Productos Activos")
     if not productos:
-        st.write("Este vendedor no tiene productos activos.")
         return
-
+    st.subheader("🛒 Productos Activos")
     df = pd.DataFrame([{
         "Título": p["title"],
         "Precio": p["price"],
@@ -129,16 +137,12 @@ def mostrar_productos(productos):
         "Categoría": p["category_id"],
         "Link": p["permalink"]
     } for p in productos])
-
     st.dataframe(df)
-
     st.markdown("#### 💰 Productos extremos")
     st.write("Más barato:", df.sort_values("Precio").head(1))
     st.write("Más caro:", df.sort_values("Precio", ascending=False).head(1))
-
     st.markdown("#### 🏷️ Categorías más comunes")
-    cat_counts = df["Categoría"].value_counts().head(5)
-    st.write(cat_counts)
+    st.write(df["Categoría"].value_counts().head(5))
 
 # 🔄 EJECUCIÓN
 if url_producto:
@@ -149,11 +153,8 @@ if url_producto:
         promos = obtener_promos(seller_id)
         st.success("✅ Vendedor encontrado")
         mostrar_datos(datos)
-        mostrar_productos(productos)
-        st.subheader("💸 Promociones pagadas")
+        if productos:
+            mostrar_productos(productos)
         if promos.get("available"):
+            st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
-        else:
-            st.markdown("❌ Este vendedor **no está usando promociones pagadas**.")
-    else:
-        st.warning("No se encontró el vendedor.")
