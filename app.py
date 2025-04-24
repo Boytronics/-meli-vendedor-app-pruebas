@@ -44,6 +44,11 @@ def obtener_productos(seller_id):
     url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=100"
     return requests.get(url).json().get("results", [])
 
+def obtener_total_productos_activos(seller_id):
+    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active"
+    res = requests.get(url).json()
+    return res.get("paging", {}).get("total", 0)
+
 def obtener_promos(seller_id):
     url = f"https://api.mercadolibre.com/users/{seller_id}/classifieds_promotion_data"
     return requests.get(url).json()
@@ -56,7 +61,7 @@ def texto_personalizado(label, valor):
     </div>
     """, unsafe_allow_html=True)
 
-def mostrar_datos(datos):
+def mostrar_datos(datos, seller_id):
     col1, col2 = st.columns(2)
 
     with col1:
@@ -72,6 +77,11 @@ def mostrar_datos(datos):
             texto_personalizado("🏆 Puntos:", datos["points"])
         if "status" in datos:
             texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
+
+        total_activos = obtener_total_productos_activos(seller_id)
+        if total_activos:
+            texto_personalizado("🛒 Productos activos:", total_activos)
+
         st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
 
         if datos.get("eshop"):
@@ -144,22 +154,6 @@ def mostrar_productos(productos):
     st.markdown("#### 🏷️ Categorías más comunes")
     st.write(df["Categoría"].value_counts().head(5))
 
-def mostrar_top_ventas(productos):
-    vendidos = [
-        {
-            "Título": p["title"],
-            "Vendidos": p.get("sold_quantity", 0),
-            "Precio": p["price"],
-            "Stock": p.get("available_quantity", 0),
-            "Link": f"[Ver producto]({p['permalink']})"
-        }
-        for p in productos if p.get("sold_quantity", 0) > 0
-    ]
-    if vendidos:
-        df_top = pd.DataFrame(vendidos).sort_values(by="Vendidos", ascending=False).head(10)
-        st.subheader("🏆 Top 10 productos más vendidos")
-        st.write(df_top.to_html(escape=False, index=False), unsafe_allow_html=True)
-
 # 🔄 EJECUCIÓN
 if url_producto:
     seller_id = obtener_seller_id(url_producto)
@@ -168,40 +162,9 @@ if url_producto:
         productos = obtener_productos(seller_id)
         promos = obtener_promos(seller_id)
         st.success("✅ Vendedor encontrado")
-        mostrar_datos(datos)
+        mostrar_datos(datos, seller_id)
         if productos:
             mostrar_productos(productos)
-            mostrar_top_ventas_reales(seller_id)
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
-
-def mostrar_top_ventas_reales(seller_id):
-    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
-    res = requests.get(url).json()
-    ids = res.get("results", [])
-
-    if not ids:
-        return
-
-    vendidos = []
-    for id in ids:
-        try:
-            item = requests.get(f"https://api.mercadolibre.com/items/{id}").json()
-            vendidos.append({
-                "Título": item.get("title", ""),
-                "Vendidos": item.get("sold_quantity", 0),
-                "Precio": item.get("price", 0),
-                "Stock": item.get("available_quantity", 0),
-                "Link": f"[Ver producto]({item.get('permalink', '')})"
-            })
-        except:
-            continue
-
-    vendidos = [x for x in vendidos if x["Vendidos"] > 0]
-
-    if vendidos:
-        df = pd.DataFrame(vendidos).sort_values("Vendidos", ascending=False).head(10)
-        st.subheader("🏆 Top 10 productos más vendidos")
-        st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
