@@ -45,54 +45,54 @@ def obtener_datos_vendedor(seller_id):
         st.error(f"Error al obtener los datos del vendedor: {e}")
         return None
 
-def texto_grande(label, valor):
-    st.markdown(f"<div style='font-size:22px;'><strong>{label}</strong> {valor}</div>", unsafe_allow_html=True)
+def texto_verde(label, valor):
+    st.markdown(f"<div style='font-size:22px; color:#00FF00;'><strong>{label}</strong> {valor}</div>", unsafe_allow_html=True)
 
 def mostrar_datos(datos):
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("📄 Datos básicos")
-        texto_grande("👤 Nickname:", datos.get("nickname", "N/A"))
-        fecha_registro = datos.get("registration_date", "")[:10]
-        texto_grande("🗓️ Registro:", fecha_registro)
-        texto_grande("🌎 País:", datos.get("country_id", ""))
-        texto_grande("📍 Estado/Ciudad:",
+        texto_verde("👤 Nickname:", datos.get("nickname", "N/A"))
+        fecha = datos.get("registration_date", "")
+        texto_verde("🗓️ Registro:", fecha[:10] if fecha else "No disponible")
+        texto_verde("🌎 País:", datos.get("country_id", ""))
+        texto_verde("📍 Estado/Ciudad:",
                      f"{datos.get('address', {}).get('state', '')} / {datos.get('address', {}).get('city', '')}")
         st.markdown(f"[🔗 Ver perfil](https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')})", unsafe_allow_html=True)
 
         if datos.get("eshop"):
-            texto_grande("🏪 Tiene E-Shop:", "✅ Sí")
-            texto_grande("🛍️ Nombre E-Shop:", datos["eshop"].get("nick_name"))
+            texto_verde("🏪 Tiene E-Shop:", "✅ Sí")
+            texto_verde("🛍️ Nombre E-Shop:", datos["eshop"].get("nick_name"))
             logo = datos["eshop"].get("eshop_logo_url")
             if logo:
                 st.image(logo, width=100)
         else:
-            texto_grande("🏪 Tiene E-Shop:", "❌ No")
+            texto_verde("🏪 Tiene E-Shop:", "❌ No")
 
     with col2:
         st.subheader("📈 Reputación y desempeño")
         rep = datos.get("seller_reputation", {})
-        texto_grande("🏅 Nivel reputación:", rep.get("level_id", "N/A"))
-        texto_grande("💼 MercadoLíder:", rep.get("power_seller_status", "N/A"))
+        texto_verde("🏅 Nivel reputación:", rep.get("level_id", "N/A"))
+        texto_verde("💼 MercadoLíder:", rep.get("power_seller_status", "N/A"))
 
         trans = rep.get("transactions", {})
-        texto_grande("📦 Ventas totales:", trans.get("total", 0))
-        texto_grande("✅ Completadas:", trans.get("completed", 0))
-        texto_grande("❌ Canceladas:", trans.get("canceled", 0))
+        texto_verde("📦 Ventas totales:", trans.get("total", 0))
+        texto_verde("✅ Completadas:", trans.get("completed", 0))
+        texto_verde("❌ Canceladas:", trans.get("canceled", 0))
 
         ratings = trans.get("ratings", {})
-        texto_grande("👍 Positivas:", f"{round(ratings.get('positive', 0) * 100, 2)}%")
-        texto_grande("😐 Neutrales:", f"{round(ratings.get('neutral', 0) * 100, 2)}%")
-        texto_grande("👎 Negativas:", f"{round(ratings.get('negative', 0) * 100, 2)}%")
+        texto_verde("👍 Positivas:", f"{round(ratings.get('positive', 0) * 100, 2)}%")
+        texto_verde("😐 Neutrales:", f"{round(ratings.get('neutral', 0) * 100, 2)}%")
+        texto_verde("👎 Negativas:", f"{round(ratings.get('negative', 0) * 100, 2)}%")
 
         metrics = rep.get("metrics", {})
         if metrics:
             st.markdown("<h5 style='margin-top:20px;'>📊 Últimos 60 días:</h5>", unsafe_allow_html=True)
-            texto_grande("🕒 Ventas completadas:", metrics.get("sales", {}).get("completed", 0))
-            texto_grande("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0) * 100, 2)}%")
-            texto_grande("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0) * 100, 2)}%")
-            texto_grande("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0) * 100, 2)}%")
+            texto_verde("🕒 Ventas completadas:", metrics.get("sales", {}).get("completed", 0))
+            texto_verde("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0) * 100, 2)}%")
+            texto_verde("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0) * 100, 2)}%")
+            texto_verde("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0) * 100, 2)}%")
 
 # Ejecución principal
 if url_producto:
@@ -106,3 +106,4 @@ if url_producto:
             st.warning("No se pudo obtener la información del vendedor.")
     else:
         st.warning("No se encontró el vendedor.")
+
