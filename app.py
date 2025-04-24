@@ -171,30 +171,37 @@ if url_producto:
         mostrar_datos(datos)
         if productos:
             mostrar_productos(productos)
-            mostrar_top_ventas(productos)
+            mostrar_top_ventas_reales(seller_id)
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
 
-def mostrar_top_ventas(productos):
+def mostrar_top_ventas_reales(seller_id):
+    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
+    res = requests.get(url).json()
+    ids = res.get("results", [])
+
+    if not ids:
+        return
+
     vendidos = []
-    for p in productos:
+    for id in ids:
         try:
-            item_data = requests.get(f"https://api.mercadolibre.com/items/{p['id']}").json()
+            item = requests.get(f"https://api.mercadolibre.com/items/{id}").json()
             vendidos.append({
-                "Título": item_data.get("title", ""),
-                "Vendidos": item_data.get("sold_quantity", 0),
-                "Precio": item_data.get("price", 0),
-                "Stock": item_data.get("available_quantity", 0),
-                "Link": f"[Ver producto]({item_data.get('permalink', '')})"
+                "Título": item.get("title", ""),
+                "Vendidos": item.get("sold_quantity", 0),
+                "Precio": item.get("price", 0),
+                "Stock": item.get("available_quantity", 0),
+                "Link": f"[Ver producto]({item.get('permalink', '')})"
             })
         except:
             continue
 
-    vendidos = [p for p in vendidos if p["Vendidos"] > 0]
+    vendidos = [x for x in vendidos if x["Vendidos"] > 0]
 
     if vendidos:
-        df_top = pd.DataFrame(vendidos).sort_values(by="Vendidos", ascending=False).head(10)
+        df = pd.DataFrame(vendidos).sort_values("Vendidos", ascending=False).head(10)
         st.subheader("🏆 Top 10 productos más vendidos")
-        st.write(df_top.to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
