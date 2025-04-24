@@ -80,8 +80,6 @@ def mostrar_datos(datos):
             logo = datos["eshop"].get("eshop_logo_url")
             if logo:
                 st.image(logo, width=100)
-        else:
-            texto_personalizado("🏪 Tiene E-Shop:", "❌ No")
 
     with col2:
         rep = datos.get("seller_reputation", {})
@@ -146,6 +144,22 @@ def mostrar_productos(productos):
     st.markdown("#### 🏷️ Categorías más comunes")
     st.write(df["Categoría"].value_counts().head(5))
 
+def mostrar_top_ventas(productos):
+    vendidos = [
+        {
+            "Título": p["title"],
+            "Vendidos": p.get("sold_quantity", 0),
+            "Precio": p["price"],
+            "Stock": p.get("available_quantity", 0),
+            "Link": f"[Ver producto]({p['permalink']})"
+        }
+        for p in productos if p.get("sold_quantity", 0) > 0
+    ]
+    if vendidos:
+        df_top = pd.DataFrame(vendidos).sort_values(by="Vendidos", ascending=False).head(10)
+        st.subheader("🏆 Top 10 productos más vendidos")
+        st.write(df_top.to_html(escape=False, index=False), unsafe_allow_html=True)
+
 # 🔄 EJECUCIÓN
 if url_producto:
     seller_id = obtener_seller_id(url_producto)
@@ -157,6 +171,7 @@ if url_producto:
         mostrar_datos(datos)
         if productos:
             mostrar_productos(productos)
+            mostrar_top_ventas(productos)
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
