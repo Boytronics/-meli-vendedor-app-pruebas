@@ -58,9 +58,9 @@ def texto_personalizado(label, valor):
         <span style='color:#00FF00; font-family:monospace; font-size:22px;'> {valor}</span>
     </div>
     """, unsafe_allow_html=True)
+
 def mostrar_datos(datos, seller_id):
     col1, col2 = st.columns(2)
-
     with col1:
         st.subheader("📄 Datos básicos")
         texto_personalizado("👤 Nickname:", datos.get("nickname", "N/A"))
@@ -128,13 +128,20 @@ def mostrar_datos(datos, seller_id):
                     st.pyplot(fig)
 
 def mostrar_productos_desde_ids(seller_id):
+    productos = []
     url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
     res = requests.get(url).json()
     ids = res.get("results", [])
+
+    if not ids:
+        url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=50"
+        res = requests.get(url).json()
+        ids = [r.get("id") for r in res.get("results", [])]
+
     if not ids:
         st.info("Este vendedor no tiene productos activos visibles.")
         return
-    productos = []
+
     for pid in ids:
         try:
             item = requests.get(f"https://api.mercadolibre.com/items/{pid}").json()
@@ -146,34 +153,30 @@ def mostrar_productos_desde_ids(seller_id):
             })
         except:
             continue
+
     if productos:
-        st.subheader("🛒 Productos activos (por ID)")
+        st.subheader("🛒 Productos activos (por ID o búsqueda)")
         df = pd.DataFrame(productos)
         st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 def analizar_productos_activos(seller_id):
-    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
+    url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=50"
     res = requests.get(url).json()
-    ids = res.get("results", [])
-    if not ids:
+    items = res.get("results", [])
+    if not items:
         return
+
     productos = []
-    for pid in ids:
-        try:
-            item = requests.get(f"https://api.mercadolibre.com/items/{pid}").json()
-            productos.append({
-                "id": pid,
-                "title": item.get("title", ""),
-                "price": item.get("price", 0),
-                "stock": item.get("available_quantity", 0),
-                "category_id": item.get("category_id", ""),
-                "shipping": item.get("shipping", {}).get("free_shipping", False)
-            })
-        except:
-            continue
-    if not productos:
-        return
+    for item in items:
+        productos.append({
+            "title": item.get("title", ""),
+            "price": item.get("price", 0),
+            "stock": item.get("available_quantity", 0),
+            "category_id": item.get("category_id", "")
+        })
+
     st.subheader("📊 Análisis general del catálogo")
+
     all_words = []
     for p in productos:
         title = p["title"].lower()
@@ -208,7 +211,7 @@ def analizar_productos_activos(seller_id):
     else:
         st.success("🎉 No hay productos con stock bajo.")
 
-# EJECUCIÓN PRINCIPAL
+# EJECUCIÓN
 if url_producto:
     seller_id = obtener_seller_id(url_producto)
     if seller_id:
@@ -221,4 +224,3 @@ if url_producto:
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
-
