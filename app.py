@@ -171,3 +171,73 @@ if url_producto:
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
+
+import collections
+import string
+
+def analizar_productos_activos(seller_id):
+    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
+    res = requests.get(url).json()
+    ids = res.get("results", [])
+    if not ids:
+        return
+
+    productos = []
+    for pid in ids:
+        try:
+            item = requests.get(f"https://api.mercadolibre.com/items/{pid}").json()
+            productos.append({
+                "id": pid,
+                "title": item.get("title", ""),
+                "price": item.get("price", 0),
+                "stock": item.get("available_quantity", 0),
+                "category_id": item.get("category_id", ""),
+                "shipping": item.get("shipping", {}).get("free_shipping", False)
+            })
+        except:
+            continue
+
+    if not productos:
+        return
+
+    st.subheader("📊 Análisis general del catálogo")
+
+    # 1. Palabras clave más comunes en títulos
+    st.markdown("#### 🧠 Palabras más frecuentes en los títulos")
+    all_words = []
+    for p in productos:
+        title = p["title"].lower()
+        title = title.translate(str.maketrans('', '', string.punctuation))
+        words = title.split()
+        all_words.extend([w for w in words if len(w) > 3])
+    comunes = collections.Counter(all_words).most_common(10)
+    st.write(pd.DataFrame(comunes, columns=["Palabra", "Repeticiones"]))
+
+    # 2. Resumen de precios y stock
+    st.markdown("#### 💰 Estadísticas de precios y stock")
+    precios = [p["price"] for p in productos]
+    stocks = [p["stock"] for p in productos]
+    resumen = pd.DataFrame({
+        "Promedio": [round(sum(precios)/len(precios), 2), round(sum(stocks)/len(stocks), 2)],
+        "Mínimo": [min(precios), min(stocks)],
+        "Máximo": [max(precios), max(stocks)]
+    }, index=["Precio", "Stock"])
+    st.table(resumen)
+
+    # 3. Categorías más comunes
+    st.markdown("#### 🏷️ Categorías más usadas")
+    cats = collections.Counter([p["category_id"] for p in productos]).most_common(5)
+    st.write(pd.DataFrame(cats, columns=["Categoría ID", "Cantidad"]))
+
+    # 4. Productos con bajo stock
+    st.markdown("#### 🚨 Productos con stock ≤ 5")
+    bajos = [p for p in productos if p["stock"] <= 5]
+    if bajos:
+        st.write(pd.DataFrame([{
+            "Título": b["title"],
+            "Stock": b["stock"],
+            "Precio": b["price"]
+        } for b in bajos]))
+    else:
+        st.success("🎉 No hay productos con stock bajo.")
+
