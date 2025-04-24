@@ -2,6 +2,9 @@ import streamlit as st
 import requests
 import re
 from bs4 import BeautifulSoup
+import pandas as pd
+from collections import Counter
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Perfil de Vendedor - Mercado Libre", layout="wide")
 st.title("🔍 Perfil Completo del Vendedor en Mercado Libre")
@@ -37,13 +40,17 @@ def obtener_seller_id(url):
 
 def obtener_datos_vendedor(seller_id):
     try:
-        url = f"https://api.mercadolibre.com/users/{seller_id}"
-        res = requests.get(url)
-        res.raise_for_status()
-        return res.json()
-    except Exception as e:
-        st.error(f"Error al obtener los datos del vendedor: {e}")
-        return None
+        return requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
+    except:
+        return {}
+
+def obtener_productos(seller_id):
+    url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=100"
+    return requests.get(url).json().get("results", [])
+
+def obtener_promos(seller_id):
+    url = f"https://api.mercadolibre.com/users/{seller_id}/classifieds_promotion_data"
+    return requests.get(url).json()
 
 def texto_personalizado(label, valor):
     st.markdown(f"""
@@ -59,11 +66,11 @@ def mostrar_datos(datos):
     with col1:
         st.subheader("📄 Datos básicos")
         texto_personalizado("👤 Nickname:", datos.get("nickname", "N/A"))
-        fecha = datos.get("registration_date", "")
-        texto_personalizado("🗓️ Registro:", fecha[:10] if fecha else "No disponible")
+        texto_personalizado("🗓️ Registro:", datos.get("registration_date", "")[:10])
         texto_personalizado("🌎 País:", datos.get("country_id", ""))
-        texto_personalizado("📍 Estado/Ciudad:",
-                     f"{datos.get('address', {}).get('state', '')} / {datos.get('address', {}).get('city', '')}")
+        texto_personalizado("📍 Estado/Ciudad:", f"{datos.get('address', {}).get('state', '')} / {datos.get('address', {}).get('city', '')}")
+        texto_personalizado("🏆 Puntos:", datos.get("points", "N/D"))
+        texto_personalizado("🟢 Estado cuenta:", datos.get("status", {}).get("site_status", "Desconocido"))
         st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
 
         if datos.get("eshop"):
@@ -78,36 +85,75 @@ def mostrar_datos(datos):
     with col2:
         st.subheader("📈 Reputación y desempeño")
         rep = datos.get("seller_reputation", {})
+        trans = rep.get("transactions", {})
+        ratings = trans.get("ratings", {})
         texto_personalizado("🏅 Nivel reputación:", rep.get("level_id", "N/A"))
         texto_personalizado("💼 MercadoLíder:", rep.get("power_seller_status", "N/A"))
-
-        trans = rep.get("transactions", {})
         texto_personalizado("📦 Ventas totales:", trans.get("total", 0))
         texto_personalizado("✅ Completadas:", trans.get("completed", 0))
         texto_personalizado("❌ Canceladas:", trans.get("canceled", 0))
+        texto_personalizado("👍 Positivas:", f"{round(ratings.get('positive', 0)*100, 2)}%" if ratings else "N/A")
+        texto_personalizado("😐 Neutrales:", f"{round(ratings.get('neutral', 0)*100, 2)}%" if ratings else "N/A")
+        texto_personalizado("👎 Negativas:", f"{round(ratings.get('negative', 0)*100, 2)}%" if ratings else "N/A")
 
-        ratings = trans.get("ratings", {})
-        texto_personalizado("👍 Positivas:", f"{round(ratings.get('positive', 0) * 100, 2)}%" if ratings else "No disponible")
-        texto_personalizado("😐 Neutrales:", f"{round(ratings.get('neutral', 0) * 100, 2)}%" if ratings else "No disponible")
-        texto_personalizado("👎 Negativas:", f"{round(ratings.get('negative', 0) * 100, 2)}%" if ratings else "No disponible")
-
+        st.markdown("#### 📊 Métricas últimas 60 días:")
         metrics = rep.get("metrics", {})
-        if metrics:
-            st.markdown("<h5 style='margin-top:20px; color:white;'>📊 Últimos 60 días:</h5>", unsafe_allow_html=True)
-            texto_personalizado("🕒 Ventas completadas:", metrics.get("sales", {}).get("completed", 0))
-            texto_personalizado("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0) * 100, 2)}%")
-            texto_personalizado("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0) * 100, 2)}%")
-            texto_personalizado("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0) * 100, 2)}%")
+        texto_personalizado("🛑 Reclamos:", f"{round(metrics.get('claims', {}).get('rate', 0)*100, 2)}%")
+        texto_personalizado("⏳ Demoras:", f"{round(metrics.get('delayed_handling_time', {}).get('rate', 0)*100, 2)}%")
+        texto_personalizado("❌ Cancelaciones:", f"{round(metrics.get('cancellations', {}).get('rate', 0)*100, 2)}%")
 
-# Ejecución principal
+        # Gráfico de barras
+        st.markdown("##### 📉 Gráfico:")
+        fig, ax = plt.subplots()
+        labels = ['Reclamos', 'Demoras', 'Cancelaciones']
+        valores = [
+            metrics.get("claims", {}).get("rate", 0) * 100,
+            metrics.get("delayed_handling_time", {}).get("rate", 0) * 100,
+            metrics.get("cancellations", {}).get("rate", 0) * 100
+        ]
+        ax.bar(labels, valores, color='limegreen')
+        ax.set_ylabel('%')
+        ax.set_ylim(0, 100)
+        st.pyplot(fig)
+
+def mostrar_productos(productos):
+    st.subheader("🛒 Productos Activos")
+    if not productos:
+        st.write("Este vendedor no tiene productos activos.")
+        return
+
+    df = pd.DataFrame([{
+        "Título": p["title"],
+        "Precio": p["price"],
+        "Stock": p.get("available_quantity", 0),
+        "Categoría": p["category_id"],
+        "Link": p["permalink"]
+    } for p in productos])
+
+    st.dataframe(df)
+
+    st.markdown("#### 💰 Productos extremos")
+    st.write("Más barato:", df.sort_values("Precio").head(1))
+    st.write("Más caro:", df.sort_values("Precio", ascending=False).head(1))
+
+    st.markdown("#### 🏷️ Categorías más comunes")
+    cat_counts = df["Categoría"].value_counts().head(5)
+    st.write(cat_counts)
+
+# 🔄 EJECUCIÓN
 if url_producto:
     seller_id = obtener_seller_id(url_producto)
     if seller_id:
         datos = obtener_datos_vendedor(seller_id)
-        if datos:
-            st.success("✅ Vendedor encontrado")
-            mostrar_datos(datos)
+        productos = obtener_productos(seller_id)
+        promos = obtener_promos(seller_id)
+        st.success("✅ Vendedor encontrado")
+        mostrar_datos(datos)
+        mostrar_productos(productos)
+        st.subheader("💸 Promociones pagadas")
+        if promos.get("available"):
+            st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
         else:
-            st.warning("No se pudo obtener la información del vendedor.")
+            st.markdown("❌ Este vendedor **no está usando promociones pagadas**.")
     else:
         st.warning("No se encontró el vendedor.")
