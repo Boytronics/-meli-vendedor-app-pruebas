@@ -175,3 +175,26 @@ if url_producto:
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
+
+def mostrar_top_ventas(productos):
+    vendidos = []
+    for p in productos:
+        try:
+            item_data = requests.get(f"https://api.mercadolibre.com/items/{p['id']}").json()
+            vendidos.append({
+                "Título": item_data.get("title", ""),
+                "Vendidos": item_data.get("sold_quantity", 0),
+                "Precio": item_data.get("price", 0),
+                "Stock": item_data.get("available_quantity", 0),
+                "Link": f"[Ver producto]({item_data.get('permalink', '')})"
+            })
+        except:
+            continue
+
+    vendidos = [p for p in vendidos if p["Vendidos"] > 0]
+
+    if vendidos:
+        df_top = pd.DataFrame(vendidos).sort_values(by="Vendidos", ascending=False).head(10)
+        st.subheader("🏆 Top 10 productos más vendidos")
+        st.write(df_top.to_html(escape=False, index=False), unsafe_allow_html=True)
+
