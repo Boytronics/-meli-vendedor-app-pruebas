@@ -127,142 +127,29 @@ def mostrar_datos(datos, seller_id):
                     ax.set_ylim(0, 100)
                     st.pyplot(fig)
 
-def mostrar_productos_desde_ids(seller_id):
-    productos = []
-    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active&limit=50"
-    res = requests.get(url).json()
-    ids = res.get("results", [])
-
-    if not ids:
-        url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=50"
-        res = requests.get(url).json()
-        ids = [r.get("id") for r in res.get("results", [])]
-
-    if not ids:
-        st.info("Este vendedor no tiene productos activos visibles.")
-        return
-
-    for pid in ids:
-        try:
-            item = requests.get(f"https://api.mercadolibre.com/items/{pid}").json()
-            productos.append({
-                "Título": item.get("title", ""),
-                "Precio": item.get("price", 0),
-                "Stock": item.get("available_quantity", 0),
-                "Link": f"[Ver producto]({item.get('permalink', '')})"
-            })
-        except:
-            continue
-
-    if productos:
-        st.subheader("🛒 Productos activos (por ID o búsqueda)")
-        df = pd.DataFrame(productos)
-        st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-def analizar_productos_activos(seller_id):
-    url = f"https://api.mercadolibre.com/sites/MLM/search?seller_id={seller_id}&limit=50"
-    res = requests.get(url).json()
-    items = res.get("results", [])
-    if not items:
-        return
-
-    productos = []
-    for item in items:
-        productos.append({
-            "title": item.get("title", ""),
-            "price": item.get("price", 0),
-            "stock": item.get("available_quantity", 0),
-            "category_id": item.get("category_id", "")
-        })
-
-    st.subheader("📊 Análisis general del catálogo")
-
-    all_words = []
-    for p in productos:
-        title = p["title"].lower()
-        title = title.translate(str.maketrans('', '', string.punctuation))
-        words = title.split()
-        all_words.extend([w for w in words if len(w) > 3])
-    comunes = collections.Counter(all_words).most_common(10)
-    st.write(pd.DataFrame(comunes, columns=["Palabra", "Repeticiones"]))
-
-    st.markdown("#### 💰 Estadísticas de precios y stock")
-    precios = [p["price"] for p in productos]
-    stocks = [p["stock"] for p in productos]
-    resumen = pd.DataFrame({
-        "Promedio": [round(sum(precios)/len(precios), 2), round(sum(stocks)/len(stocks), 2)],
-        "Mínimo": [min(precios), min(stocks)],
-        "Máximo": [max(precios), max(stocks)]
-    }, index=["Precio", "Stock"])
-    st.table(resumen)
-
-    st.markdown("#### 🏷️ Categorías más usadas")
-    cats = collections.Counter([p["category_id"] for p in productos]).most_common(5)
-    st.write(pd.DataFrame(cats, columns=["Categoría ID", "Cantidad"]))
-
-    st.markdown("#### 🚨 Productos con stock ≤ 5")
-    bajos = [p for p in productos if p["stock"] <= 5]
-    if bajos:
-        st.write(pd.DataFrame([{
-            "Título": b["title"],
-            "Stock": b["stock"],
-            "Precio": b["price"]
-        } for b in bajos]))
-    else:
-        st.success("🎉 No hay productos con stock bajo.")
-
-# EJECUCIÓN
-if url_producto:
-    seller_id = obtener_seller_id(url_producto)
-    if seller_id:
-        datos = obtener_datos_vendedor(seller_id)
-        promos = obtener_promos(seller_id)
-        st.success("✅ Vendedor encontrado")
-        mostrar_datos(datos, seller_id)
-        mostrar_productos_desde_ids(seller_id)
-        analizar_productos_activos(seller_id)
-        if promos.get("available"):
-            st.subheader("💸 Promociones pagadas")
-            st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
-
-
 st.markdown("---")
 st.header("📊 Comparador de Vendedores")
 
-links_input = st.text_area("Pega hasta 10 links de productos (uno por línea)", height=200)
-boton_comparar = st.button("🔍 Comparar vendedores")
+input_vendedores = st.text_area("Pega hasta 10 *nicknames* o *seller_id* (uno por línea):", height=200)
+comparar_btn = st.button("🔍 Comparar vendedores")
 
-def extraer_seller_id_de_url(url):
+def obtener_datos_por_seller(seller):
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, allow_redirects=True)
-        match = re.search(r"MLM(\d+)", r.url)
-        if not match:
-            return None
-        product_id = f"MLM{match.group(1)}"
-        item_res = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
-        if item_res.status_code != 200:
-            return None
-        return item_res.json().get("seller_id")
-    except:
-        return None
+        if isinstance(seller, str) and not seller.isdigit():
+            res = requests.get(f"https://api.mercadolibre.com/sites/MLM/search?seller_nickname={seller}").json()
+            results = res.get("results", [])
+            if not results:
+                return None
+            seller_id = results[0].get("seller", {}).get("id")
+        else:
+            seller_id = seller
 
-    return r.json().get("seller_id")
-
-if boton_comparar and links_input:
-    urls = [line.strip() for line in links_input.splitlines() if line.strip()][:10]
-    datos = []
-
-    for url in urls:
-        seller_id = extraer_seller_id_de_url(url)
-        if not seller_id:
-            continue
         user = requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
         rep = user.get("seller_reputation", {})
         metrics = rep.get("metrics", {})
         trans = rep.get("transactions", {})
 
-        datos.append({
+        return {
             "Vendedor": user.get("nickname"),
             "Reputación": rep.get("level_id", "N/A"),
             "MercadoLíder": rep.get("power_seller_status", "N/A"),
@@ -271,7 +158,18 @@ if boton_comparar and links_input:
             "Reclamos": round(metrics.get("claims", {}).get("rate", 0) * 100, 2),
             "Demoras": round(metrics.get("delayed_handling_time", {}).get("rate", 0) * 100, 2),
             "Cancelaciones": round(metrics.get("cancellations", {}).get("rate", 0) * 100, 2)
-        })
+        }
+    except:
+        return None
+
+if comparar_btn and input_vendedores:
+    líneas = [x.strip() for x in input_vendedores.splitlines() if x.strip()]
+    datos = []
+
+    for linea in líneas[:10]:
+        resultado = obtener_datos_por_seller(linea)
+        if resultado:
+            datos.append(resultado)
 
     if datos:
         df = pd.DataFrame(datos)
@@ -285,5 +183,6 @@ if boton_comparar and links_input:
         ax.set_xticklabels(df["Vendedor"], rotation=45, ha="right")
         st.pyplot(fig)
     else:
-        st.warning("No se pudo obtener información de los links ingresados.")
+        st.warning("No se pudo obtener información de los vendedores ingresados.")
+
 
