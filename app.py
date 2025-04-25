@@ -1,10 +1,11 @@
-
 import streamlit as st
 import requests
 import re
 from bs4 import BeautifulSoup
 import pandas as pd
 import matplotlib.pyplot as plt
+import collections
+import string
 
 st.set_page_config(page_title="Perfil de Vendedor - Mercado Libre", layout="wide")
 st.title("🔍 Perfil Completo del Vendedor en Mercado Libre")
@@ -42,13 +43,13 @@ def obtener_seller_id(url):
 def obtener_datos_vendedor(seller_id):
     return requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
 
+def obtener_total_productos_activos(seller_id):
+    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active"
+    res = requests.get(url).json()
+    return res.get("paging", {}).get("total", 0)
+
 def texto_personalizado(label, valor):
-    st.markdown(f"""
-    <div style='font-size:18px; color:white; margin-bottom:4px;'>
-        {label}
-        <span style='color:#00FF00; font-family:monospace; font-size:22px;'> {valor}</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:18px; color:white; margin-bottom:4px;'>{label}<span style='color:#00FF00; font-family:monospace; font-size:22px;'> {valor}</span></div>", unsafe_allow_html=True)
 
 def mostrar_datos(datos, seller_id):
     col1, col2 = st.columns(2)
@@ -59,12 +60,13 @@ def mostrar_datos(datos, seller_id):
             texto_personalizado("🗓️ Registro:", datos["registration_date"][:10])
         texto_personalizado("🌎 País:", datos.get("country_id", ""))
         if "address" in datos:
-            texto_personalizado("📍 Estado/Ciudad:",
-                f"{datos['address'].get('state', '')} / {datos['address'].get('city', '')}")
+            texto_personalizado("📍 Estado/Ciudad:", f"{datos['address'].get('state', '')} / {datos['address'].get('city', '')}")
         if "points" in datos:
             texto_personalizado("🏆 Puntos:", datos["points"])
         if "status" in datos:
             texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
+        total_activos = obtener_total_productos_activos(seller_id)
+        texto_personalizado("🛒 Productos activos:", total_activos)
         st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
 
     with col2:
@@ -91,16 +93,15 @@ def mostrar_datos(datos, seller_id):
 
 def obtener_datos_por_seller(nickname):
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(f"https://www.mercadolibre.com.mx/perfil/{nickname}", headers=headers)
-        match = re.search(r'"user_id"\s*:\s*"?(\d+)"?', r.text)
-        if not match:
+        r = requests.get(f"https://api.mercadolibre.com/sites/MLM/search?nickname={nickname}")
+        data = r.json()
+        if "seller" in data:
+            seller_id = data["seller"]["id"]
+        elif data.get("results"):
+            seller_id = data["results"][0]["seller"]["id"]
+        else:
             return None
-        seller_id = match.group(1)
-        res = requests.get(f"https://api.mercadolibre.com/users/{seller_id}")
-        if res.status_code != 200:
-            return None
-        user = res.json()
+        user = requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
         rep = user.get("seller_reputation", {})
         metrics = rep.get("metrics", {})
         trans = rep.get("transactions", {})
@@ -146,6 +147,7 @@ if comparar_btn and input_vendedores:
         df = pd.DataFrame(datos)
         st.subheader("📋 Tabla comparativa")
         st.dataframe(df)
+
         st.subheader("📊 Gráfico: Total de Ventas por Vendedor")
         fig, ax = plt.subplots()
         ax.bar(df["Vendedor"], df["Ventas"], color='orange')
@@ -156,4 +158,3 @@ if comparar_btn and input_vendedores:
     if no_encontrados:
         st.warning("No se pudo obtener información de los siguientes vendedores:")
         st.markdown("<br>".join(no_encontrados), unsafe_allow_html=True)
-
