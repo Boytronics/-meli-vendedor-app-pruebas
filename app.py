@@ -233,12 +233,16 @@ links_input = st.text_area("Pega hasta 10 links de productos (uno por línea)", 
 boton_comparar = st.button("🔍 Comparar vendedores")
 
 def extraer_seller_id_de_url(url):
-    match = re.search(r"MLM(\d+)", url)
-    if not match:
-        return None
-    product_id = f"MLM{match.group(1)}"
-    r = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
-    if r.status_code != 200:
+    try:
+        match = re.search(r"MLM(\d+)", url)
+        if not match:
+            return None
+        product_id = f"MLM{match.group(1)}"
+        r = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
+        if r.status_code != 200:
+            return None
+        return r.json().get("seller_id")
+    except:
         return None
     return r.json().get("seller_id")
 
