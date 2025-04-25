@@ -149,7 +149,7 @@ if comparar_btn and input_vendedores:
         if resultado:
             datos.append(resultado)
         else:
-            no_encontrados.append(linea)
+            no_encontrados.append(f"❌ {linea}")
 
     if datos:
         df = pd.DataFrame(datos)
@@ -165,4 +165,4 @@ if comparar_btn and input_vendedores:
 
     if no_encontrados:
         st.warning("No se pudo obtener información de los siguientes vendedores:")
-        st.write(", ".join(no_encontrados))
+        st.markdown("<br>".join(no_encontrados), unsafe_allow_html=True)
