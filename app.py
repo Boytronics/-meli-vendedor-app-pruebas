@@ -2,70 +2,80 @@
 import streamlit as st
 import requests
 import re
-from bs4 import BeautifulSoup
 import pandas as pd
 import matplotlib.pyplot as plt
-import collections
-import string
 
-st.set_page_config(page_title="Análisis de Vendedores", layout="wide")
+st.set_page_config(page_title="Comparador de Vendedores desde Links de Productos", layout="wide")
 st.title("🔍 Comparador de Vendedores desde Links de Productos")
 
 st.markdown("Pega hasta 10 enlaces de productos de Mercado Libre (uno por línea):")
-input_links = st.text_area("Links de productos", height=200)
-boton = st.button("🔍 Comparar vendedores")
+links_input = st.text_area("Links de productos", height=200)
+comparar = st.button("🔍 Comparar vendedores")
 
-def obtener_seller_id(url):
+def extraer_product_id(url):
+    match = re.search(r"MLM\d{8}", url)
+    return match.group(0) if match else None
+
+def obtener_seller_id_desde_producto(product_id):
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
-        r.raise_for_status()
-        final_url = r.url
-        match = re.search(r"/MLM(\d+)", final_url)
-        if match:
-            product_id = f"MLM{match.group(1)}"
-            item_data = requests.get(f"https://api.mercadolibre.com/items/{product_id}").json()
-            return item_data.get("seller_id")
+        res = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
+        if res.status_code == 200:
+            return res.json().get("seller_id")
     except:
         return None
+    return None
 
 def obtener_datos_vendedor(seller_id):
-    try:
-        r = requests.get(f"https://api.mercadolibre.com/users/{seller_id}", timeout=10)
-        return r.json()
-    except:
-        return {}
+    res = requests.get(f"https://api.mercadolibre.com/users/{seller_id}")
+    return res.json() if res.status_code == 200 else None
 
-def mostrar_datos(datos, seller_id, link):
-    st.success(f"✅ Vendedor encontrado para link: {link}")
-    col1, col2 = st.columns(2)
+if comparar and links_input:
+    links = [l.strip() for l in links_input.splitlines() if l.strip()]
+    links = links[:10]
 
-    with col1:
-        st.subheader("📄 Datos básicos")
-        st.markdown(f"**👤 Nickname:** {datos.get('nickname', 'N/A')}")
-        st.markdown(f"**🌎 País:** {datos.get('country_id', '')}")
-        if "address" in datos:
-            st.markdown(f"**📍 Estado/Ciudad:** {datos['address'].get('state', '')} / {datos['address'].get('city', '')}")
-        st.markdown(f"**🟢 Estado cuenta:** {datos.get('status', {}).get('site_status', '')}")
-        st.markdown(f"[🔗 Ver perfil](https://www.mercadolibre.com.mx/perfil/{datos.get('nickname', '')})")
+    errores = []
+    resultados = []
 
-    with col2:
+    for link in links:
+        product_id = extraer_product_id(link)
+        if not product_id:
+            errores.append(f"❌ No se pudo extraer product_id de: {link}")
+            continue
+        seller_id = obtener_seller_id_desde_producto(product_id)
+        if not seller_id:
+            errores.append(f"❌ No se pudo extraer seller_id de: {link}")
+            continue
+        datos = obtener_datos_vendedor(seller_id)
+        if not datos:
+            errores.append(f"❌ No se pudieron obtener datos del vendedor desde: {link}")
+            continue
+
         rep = datos.get("seller_reputation", {})
-        st.subheader("📈 Reputación y desempeño")
-        st.markdown(f"**🏅 Nivel reputación:** {rep.get('level_id', 'N/A')}")
-        st.markdown(f"**💼 MercadoLíder:** {rep.get('power_seller_status', 'N/A')}")
         trans = rep.get("transactions", {})
-        if trans:
-            st.markdown(f"**📦 Ventas totales:** {trans.get('total', 0)}")
-            st.markdown(f"**✅ Completadas:** {trans.get('completed', 0)}")
-            st.markdown(f"**❌ Canceladas:** {trans.get('canceled', 0)}")
+        metrics = rep.get("metrics", {})
 
-if boton and input_links:
-    links = [line.strip() for line in input_links.splitlines() if line.strip()]
-    for link in links[:10]:
-        seller_id = obtener_seller_id(link)
-        if seller_id:
-            datos = obtener_datos_vendedor(seller_id)
-            mostrar_datos(datos, seller_id, link)
-        else:
-            st.error(f"❌ No se pudo extraer seller_id de: {link}")
+        resultados.append({
+            "Nickname": datos.get("nickname", "N/A"),
+            "Ventas": trans.get("total", 0),
+            "Reputación": rep.get("level_id", "N/A"),
+            "Líder": rep.get("power_seller_status", "N/A"),
+            "Reclamos": round(metrics.get("claims", {}).get("rate", 0)*100, 2),
+            "Demoras": round(metrics.get("delayed_handling_time", {}).get("rate", 0)*100, 2),
+            "Cancelaciones": round(metrics.get("cancellations", {}).get("rate", 0)*100, 2)
+        })
+
+    if resultados:
+        df = pd.DataFrame(resultados)
+        st.subheader("📊 Comparativa de Vendedores")
+        st.dataframe(df)
+
+        fig, ax = plt.subplots()
+        ax.bar(df["Nickname"], df["Ventas"], color='orange')
+        ax.set_ylabel("Ventas Totales")
+        ax.set_xticklabels(df["Nickname"], rotation=45, ha="right")
+        st.pyplot(fig)
+
+    if errores:
+        st.error("Se encontraron errores:")
+        for err in errores:
+            st.markdown(err)
