@@ -99,7 +99,7 @@ if procesar_btn and links_input:
         seller_id = obtener_seller_id(url)
         if seller_id:
             datos = obtener_datos_vendedor(seller_id)
-            st.success(f"✅ Vendedor encontrado para link:
+         st.success(f"✅ Vendedor encontrado para link: {link}")
 {url}")
             mostrar_datos(datos, seller_id)
         else:
