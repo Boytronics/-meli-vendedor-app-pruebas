@@ -74,3 +74,24 @@ if st.button("🔍 Comparar vendedores"):
         ax.set_ylabel("Ventas")
         ax.set_xticklabels(df["Vendedor"], rotation=45, ha="right")
         st.pyplot(fig)
+
+import streamlit as st
+
+# Título de sección
+st.subheader("🔗 Links de productos de Mercado Libre")
+
+# Inicializar lista de links en session_state
+if "links" not in st.session_state:
+    st.session_state.links = [""]
+
+# Función para agregar un nuevo campo
+def agregar_link():
+    st.session_state.links.append("")
+
+# Mostrar los campos dinámicos
+for i, link in enumerate(st.session_state.links):
+    st.session_state.links[i] = st.text_input(f"Link #{i + 1}", value=link, key=f"link_{i}")
+
+# Botón para agregar un nuevo campo
+st.button("➕ Agregar otro link", on_click=agregar_link)
+
