@@ -48,10 +48,6 @@ def obtener_total_productos_activos(seller_id):
     res = requests.get(url).json()
     return res.get("paging", {}).get("total", 0)
 
-def obtener_promos(seller_id):
-    url = f"https://api.mercadolibre.com/users/{seller_id}/classifieds_promotion_data"
-    return requests.get(url).json()
-
 def texto_personalizado(label, valor):
     st.markdown(f"""
     <div style='font-size:18px; color:white; margin-bottom:4px;'>
@@ -59,6 +55,47 @@ def texto_personalizado(label, valor):
         <span style='color:#00FF00; font-family:monospace; font-size:22px;'> {valor}</span>
     </div>
     """, unsafe_allow_html=True)
+
+def mostrar_datos(datos, seller_id):
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📄 Datos básicos")
+        texto_personalizado("👤 Nickname:", datos.get("nickname", "N/A"))
+        if datos.get("registration_date"):
+            texto_personalizado("🗓️ Registro:", datos["registration_date"][:10])
+        texto_personalizado("🌎 País:", datos.get("country_id", ""))
+        if "address" in datos:
+            texto_personalizado("📍 Estado/Ciudad:",
+                f"{datos['address'].get('state', '')} / {datos['address'].get('city', '')}")
+        if "points" in datos:
+            texto_personalizado("🏆 Puntos:", datos["points"])
+        if "status" in datos:
+            texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
+        total_activos = obtener_total_productos_activos(seller_id)
+        texto_personalizado("🛒 Productos activos:", total_activos)
+        st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
+
+    with col2:
+        rep = datos.get("seller_reputation", {})
+        st.subheader("📈 Reputación y desempeño")
+        if rep.get("level_id"):
+            texto_personalizado("🏅 Nivel reputación:", rep["level_id"])
+        if rep.get("power_seller_status"):
+            texto_personalizado("💼 MercadoLíder:", rep["power_seller_status"])
+        trans = rep.get("transactions", {})
+        if trans.get("total"):
+            texto_personalizado("📦 Ventas totales:", trans["total"])
+        if trans.get("completed"):
+            texto_personalizado("✅ Completadas:", trans["completed"])
+        if trans.get("canceled"):
+            texto_personalizado("❌ Canceladas:", trans["canceled"])
+        ratings = trans.get("ratings", {})
+        if ratings.get("positive") is not None:
+            texto_personalizado("👍 Positivas:", f"{round(ratings['positive'] * 100, 2)}%")
+        if ratings.get("neutral") is not None:
+            texto_personalizado("😐 Neutrales:", f"{round(ratings['neutral'] * 100, 2)}%")
+        if ratings.get("negative") is not None:
+            texto_personalizado("👎 Negativas:", f"{round(ratings['negative'] * 100, 2)}%")
 
 def obtener_datos_por_seller(seller):
     try:
