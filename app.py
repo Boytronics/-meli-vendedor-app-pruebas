@@ -60,99 +60,18 @@ def texto_personalizado(label, valor):
     </div>
     """, unsafe_allow_html=True)
 
-def mostrar_datos(datos, seller_id):
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📄 Datos básicos")
-        texto_personalizado("👤 Nickname:", datos.get("nickname", "N/A"))
-        if datos.get("registration_date"):
-            texto_personalizado("🗓️ Registro:", datos["registration_date"][:10])
-        texto_personalizado("🌎 País:", datos.get("country_id", ""))
-        if "address" in datos:
-            texto_personalizado("📍 Estado/Ciudad:",
-                f"{datos['address'].get('state', '')} / {datos['address'].get('city', '')}")
-        if "points" in datos:
-            texto_personalizado("🏆 Puntos:", datos["points"])
-        if "status" in datos:
-            texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
-        total_activos = obtener_total_productos_activos(seller_id)
-        if total_activos:
-            texto_personalizado("🛒 Productos activos:", total_activos)
-        st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
-        if datos.get("eshop"):
-            texto_personalizado("🏪 Tiene E-Shop:", "✅ Sí")
-            texto_personalizado("🛍️ Nombre E-Shop:", datos["eshop"].get("nick_name"))
-            logo = datos["eshop"].get("eshop_logo_url")
-            if logo:
-                st.image(logo, width=100)
-
-    with col2:
-        rep = datos.get("seller_reputation", {})
-        if rep:
-            st.subheader("📈 Reputación y desempeño")
-            if rep.get("level_id"):
-                texto_personalizado("🏅 Nivel reputación:", rep["level_id"])
-            if rep.get("power_seller_status"):
-                texto_personalizado("💼 MercadoLíder:", rep["power_seller_status"])
-            trans = rep.get("transactions", {})
-            if trans:
-                if trans.get("total"): texto_personalizado("📦 Ventas totales:", trans["total"])
-                if trans.get("completed"): texto_personalizado("✅ Completadas:", trans["completed"])
-                if trans.get("canceled"): texto_personalizado("❌ Canceladas:", trans["canceled"])
-                ratings = trans.get("ratings", {})
-                if ratings:
-                    if ratings.get("positive") is not None:
-                        texto_personalizado("👍 Positivas:", f"{round(ratings['positive']*100, 2)}%")
-                    if ratings.get("neutral") is not None:
-                        texto_personalizado("😐 Neutrales:", f"{round(ratings['neutral']*100, 2)}%")
-                    if ratings.get("negative") is not None:
-                        texto_personalizado("👎 Negativas:", f"{round(ratings['negative']*100, 2)}%")
-            metrics = rep.get("metrics", {})
-            if metrics:
-                st.markdown("#### 📊 Métricas últimas 60 días:")
-                if metrics.get("sales", {}).get("completed"):
-                    texto_personalizado("📈 Ventas en 60 días:", metrics["sales"]["completed"])
-                tasas = {
-                    "🛑 Reclamos": metrics.get("claims", {}).get("rate", 0),
-                    "⏳ Demoras": metrics.get("delayed_handling_time", {}).get("rate", 0),
-                    "❌ Cancelaciones": metrics.get("cancellations", {}).get("rate", 0)
-                }
-                for k, v in tasas.items():
-                    if v > 0:
-                        texto_personalizado(k + ":", f"{round(v * 100, 2)}%")
-                if any(v > 0 for v in tasas.values()):
-                    st.markdown("##### 📉 Gráfico:")
-                    fig, ax = plt.subplots()
-                    ax.bar(tasas.keys(), [v * 100 for v in tasas.values()], color='limegreen')
-                    ax.set_ylabel('%')
-                    ax.set_ylim(0, 100)
-                    st.pyplot(fig)
-
-if url_producto and consultar_btn:
-    seller_id = obtener_seller_id(url_producto)
-    if seller_id:
-        datos = obtener_datos_vendedor(seller_id)
-        st.success("✅ Vendedor encontrado")
-        mostrar_datos(datos, seller_id)
-
-st.markdown("---")
-st.header("📊 Comparador de Vendedores")
-
-input_vendedores = st.text_area("Pega hasta 10 *nicknames* o *seller_id* (uno por línea):", height=200)
-comparar_btn = st.button("🔍 Comparar vendedores")
-
 def obtener_datos_por_seller(seller):
     try:
-        if isinstance(seller, str) and not seller.isdigit():
-            res = requests.get(f"https://api.mercadolibre.com/sites/MLM/search?seller_nickname={seller}").json()
-            results = res.get("results", [])
-            if not results:
-                return None
-            seller_id = results[0].get("seller", {}).get("id")
+        user = None
+        if seller.isdigit():
+            user = requests.get(f"https://api.mercadolibre.com/users/{seller}").json()
         else:
-            seller_id = seller
+            r = requests.get(f"https://api.mercadolibre.com/users/search?nickname={seller}").json()
+            if r and r.get("seller", {}).get("id"):
+                user = requests.get(f"https://api.mercadolibre.com/users/{r['seller']['id']}").json()
+        if not user:
+            return None
 
-        user = requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
         rep = user.get("seller_reputation", {})
         metrics = rep.get("metrics", {})
         trans = rep.get("transactions", {})
@@ -169,6 +88,19 @@ def obtener_datos_por_seller(seller):
         }
     except:
         return None
+
+if url_producto and consultar_btn:
+    seller_id = obtener_seller_id(url_producto)
+    if seller_id:
+        datos = obtener_datos_vendedor(seller_id)
+        st.success("✅ Vendedor encontrado")
+        mostrar_datos(datos, seller_id)
+
+st.markdown("---")
+st.header("📊 Comparador de Vendedores")
+
+input_vendedores = st.text_area("Pega hasta 10 *nicknames* o *seller_id* (uno por línea):", height=200)
+comparar_btn = st.button("🔍 Comparar vendedores")
 
 if comparar_btn and input_vendedores:
     líneas = [x.strip() for x in input_vendedores.splitlines() if x.strip()]
