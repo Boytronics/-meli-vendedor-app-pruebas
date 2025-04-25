@@ -97,18 +97,19 @@ def mostrar_datos(datos, seller_id):
         if ratings.get("negative") is not None:
             texto_personalizado("👎 Negativas:", f"{round(ratings['negative'] * 100, 2)}%")
 
-def obtener_datos_por_seller(seller):
+def obtener_datos_por_seller(nickname):
     try:
-        user = None
-        if seller.isdigit():
-            res = requests.get(f"https://api.mercadolibre.com/users/{seller}")
-        else:
-            search = requests.get(f"https://api.mercadolibre.com/users/search?nickname={seller}").json()
-            seller_id = search.get("seller", {}).get("id")
-            if not seller_id:
-                return None
-            res = requests.get(f"https://api.mercadolibre.com/users/{seller_id}")
+        # Buscar el seller_id desde perfil público
+        search_url = f"https://www.mercadolibre.com.mx/perfil/{nickname}"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(search_url, headers=headers)
 
+        match = re.search(r'"user_id":"?(\d+)"?', r.text)
+        if not match:
+            return None
+        seller_id = match.group(1)
+
+        res = requests.get(f"https://api.mercadolibre.com/users/{seller_id}")
         if res.status_code != 200:
             return None
         user = res.json()
@@ -170,3 +171,4 @@ if comparar_btn and input_vendedores:
     if no_encontrados:
         st.warning("No se pudo obtener información de los siguientes vendedores:")
         st.markdown("<br>".join(no_encontrados), unsafe_allow_html=True)
+
