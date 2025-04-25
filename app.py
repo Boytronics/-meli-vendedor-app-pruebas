@@ -224,3 +224,59 @@ if url_producto:
         if promos.get("available"):
             st.subheader("💸 Promociones pagadas")
             st.markdown("✅ Este vendedor **usa promociones pagadas** en sus publicaciones.")
+
+
+st.markdown("---")
+st.header("📊 Comparador de Vendedores")
+
+links_input = st.text_area("Pega hasta 10 links de productos (uno por línea)", height=200)
+boton_comparar = st.button("🔍 Comparar vendedores")
+
+def extraer_seller_id_de_url(url):
+    match = re.search(r"MLM(\d+)", url)
+    if not match:
+        return None
+    product_id = f"MLM{match.group(1)}"
+    r = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
+    if r.status_code != 200:
+        return None
+    return r.json().get("seller_id")
+
+if boton_comparar and links_input:
+    urls = [line.strip() for line in links_input.splitlines() if line.strip()][:10]
+    datos = []
+
+    for url in urls:
+        seller_id = extraer_seller_id_de_url(url)
+        if not seller_id:
+            continue
+        user = requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
+        rep = user.get("seller_reputation", {})
+        metrics = rep.get("metrics", {})
+        trans = rep.get("transactions", {})
+
+        datos.append({
+            "Vendedor": user.get("nickname"),
+            "Reputación": rep.get("level_id", "N/A"),
+            "MercadoLíder": rep.get("power_seller_status", "N/A"),
+            "Estado": user.get("status", {}).get("site_status", "N/D"),
+            "Ventas": trans.get("total", 0),
+            "Reclamos": round(metrics.get("claims", {}).get("rate", 0) * 100, 2),
+            "Demoras": round(metrics.get("delayed_handling_time", {}).get("rate", 0) * 100, 2),
+            "Cancelaciones": round(metrics.get("cancellations", {}).get("rate", 0) * 100, 2)
+        })
+
+    if datos:
+        df = pd.DataFrame(datos)
+        st.subheader("📋 Tabla comparativa")
+        st.dataframe(df)
+
+        st.subheader("📊 Gráfico: Total de Ventas por Vendedor")
+        fig, ax = plt.subplots()
+        ax.bar(df["Vendedor"], df["Ventas"], color='orange')
+        ax.set_ylabel("Ventas totales")
+        ax.set_xticklabels(df["Vendedor"], rotation=45, ha="right")
+        st.pyplot(fig)
+    else:
+        st.warning("No se pudo obtener información de los links ingresados.")
+
