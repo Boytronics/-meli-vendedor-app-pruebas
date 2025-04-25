@@ -106,7 +106,7 @@ def obtener_datos_por_seller(seller):
             r = requests.get(f"https://api.mercadolibre.com/users/search?nickname={seller}").json()
             if r and r.get("seller", {}).get("id"):
                 user = requests.get(f"https://api.mercadolibre.com/users/{r['seller']['id']}").json()
-        if not user:
+        if not user or user.get("id") is None:
             return None
 
         rep = user.get("seller_reputation", {})
@@ -142,11 +142,14 @@ comparar_btn = st.button("🔍 Comparar vendedores")
 if comparar_btn and input_vendedores:
     líneas = [x.strip() for x in input_vendedores.splitlines() if x.strip()]
     datos = []
+    no_encontrados = []
 
     for linea in líneas[:10]:
         resultado = obtener_datos_por_seller(linea)
         if resultado:
             datos.append(resultado)
+        else:
+            no_encontrados.append(linea)
 
     if datos:
         df = pd.DataFrame(datos)
@@ -159,5 +162,7 @@ if comparar_btn and input_vendedores:
         ax.set_ylabel("Ventas totales")
         ax.set_xticklabels(df["Vendedor"], rotation=45, ha="right")
         st.pyplot(fig)
-    else:
-        st.warning("No se pudo obtener información de los vendedores ingresados.")
+
+    if no_encontrados:
+        st.warning("No se pudo obtener información de los siguientes vendedores:")
+        st.write(", ".join(no_encontrados))
