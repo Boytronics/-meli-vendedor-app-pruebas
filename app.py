@@ -149,8 +149,8 @@ def analizar_productos_activos(seller_id):
         st.success("🎉 No hay productos con stock bajo.")
 
 # EJECUCIÓN PRINCIPAL
-if url_producto:
-    seller_id = obtener_seller_id(url_producto)
+#if url_producto:
+ #   seller_id = obtener_seller_id(url_producto)
     if seller_id:
         datos = obtener_datos_vendedor(seller_id)
         promos = obtener_promos(seller_id)
