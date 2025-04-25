@@ -1,11 +1,10 @@
+
 import streamlit as st
 import requests
 import re
 from bs4 import BeautifulSoup
 import pandas as pd
 import matplotlib.pyplot as plt
-import collections
-import string
 
 st.set_page_config(page_title="Perfil de Vendedor - Mercado Libre", layout="wide")
 st.title("🔍 Perfil Completo del Vendedor en Mercado Libre")
@@ -43,11 +42,6 @@ def obtener_seller_id(url):
 def obtener_datos_vendedor(seller_id):
     return requests.get(f"https://api.mercadolibre.com/users/{seller_id}").json()
 
-def obtener_total_productos_activos(seller_id):
-    url = f"https://api.mercadolibre.com/users/{seller_id}/items/search?status=active"
-    res = requests.get(url).json()
-    return res.get("paging", {}).get("total", 0)
-
 def texto_personalizado(label, valor):
     st.markdown(f"""
     <div style='font-size:18px; color:white; margin-bottom:4px;'>
@@ -71,8 +65,6 @@ def mostrar_datos(datos, seller_id):
             texto_personalizado("🏆 Puntos:", datos["points"])
         if "status" in datos:
             texto_personalizado("🟢 Estado cuenta:", datos["status"].get("site_status", "N/A"))
-        total_activos = obtener_total_productos_activos(seller_id)
-        texto_personalizado("🛒 Productos activos:", total_activos)
         st.markdown(f"<a href='https://www.mercadolibre.com.mx/perfil/{datos.get('nickname')}' target='_blank'>🔗 Ver perfil</a>", unsafe_allow_html=True)
 
     with col2:
@@ -99,25 +91,19 @@ def mostrar_datos(datos, seller_id):
 
 def obtener_datos_por_seller(nickname):
     try:
-        # Buscar el seller_id desde perfil público
-        search_url = f"https://www.mercadolibre.com.mx/perfil/{nickname}"
         headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(search_url, headers=headers)
-
-        match = re.search(r'"user_id":"?(\d+)"?', r.text)
+        r = requests.get(f"https://www.mercadolibre.com.mx/perfil/{nickname}", headers=headers)
+        match = re.search(r'"user_id"\s*:\s*"?(\d+)"?', r.text)
         if not match:
             return None
         seller_id = match.group(1)
-
         res = requests.get(f"https://api.mercadolibre.com/users/{seller_id}")
         if res.status_code != 200:
             return None
         user = res.json()
-
         rep = user.get("seller_reputation", {})
         metrics = rep.get("metrics", {})
         trans = rep.get("transactions", {})
-
         return {
             "Vendedor": user.get("nickname"),
             "Reputación": rep.get("level_id", "N/A"),
@@ -160,7 +146,6 @@ if comparar_btn and input_vendedores:
         df = pd.DataFrame(datos)
         st.subheader("📋 Tabla comparativa")
         st.dataframe(df)
-
         st.subheader("📊 Gráfico: Total de Ventas por Vendedor")
         fig, ax = plt.subplots()
         ax.bar(df["Vendedor"], df["Ventas"], color='orange')
