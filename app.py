@@ -101,13 +101,17 @@ def obtener_datos_por_seller(seller):
     try:
         user = None
         if seller.isdigit():
-            user = requests.get(f"https://api.mercadolibre.com/users/{seller}").json()
+            res = requests.get(f"https://api.mercadolibre.com/users/{seller}")
         else:
-            r = requests.get(f"https://api.mercadolibre.com/users/search?nickname={seller}").json()
-            if r and r.get("seller", {}).get("id"):
-                user = requests.get(f"https://api.mercadolibre.com/users/{r['seller']['id']}").json()
-        if not user or user.get("id") is None:
+            search = requests.get(f"https://api.mercadolibre.com/users/search?nickname={seller}").json()
+            seller_id = search.get("seller", {}).get("id")
+            if not seller_id:
+                return None
+            res = requests.get(f"https://api.mercadolibre.com/users/{seller_id}")
+
+        if res.status_code != 200:
             return None
+        user = res.json()
 
         rep = user.get("seller_reputation", {})
         metrics = rep.get("metrics", {})
