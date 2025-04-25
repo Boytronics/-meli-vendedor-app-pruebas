@@ -12,6 +12,7 @@ st.title("🔍 Perfil Completo del Vendedor en Mercado Libre")
 st.write("Pega la URL de un producto para ver toda la información del vendedor.")
 
 url_producto = st.text_input("URL del producto de Mercado Libre")
+consultar_btn = st.button("🔍 Consultar vendedor")
 
 def obtener_seller_id(url):
     try:
@@ -127,6 +128,13 @@ def mostrar_datos(datos, seller_id):
                     ax.set_ylim(0, 100)
                     st.pyplot(fig)
 
+if url_producto and consultar_btn:
+    seller_id = obtener_seller_id(url_producto)
+    if seller_id:
+        datos = obtener_datos_vendedor(seller_id)
+        st.success("✅ Vendedor encontrado")
+        mostrar_datos(datos, seller_id)
+
 st.markdown("---")
 st.header("📊 Comparador de Vendedores")
 
@@ -184,5 +192,3 @@ if comparar_btn and input_vendedores:
         st.pyplot(fig)
     else:
         st.warning("No se pudo obtener información de los vendedores ingresados.")
-
-
