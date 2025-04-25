@@ -234,16 +234,19 @@ boton_comparar = st.button("🔍 Comparar vendedores")
 
 def extraer_seller_id_de_url(url):
     try:
-        match = re.search(r"MLM(\d+)", url)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, allow_redirects=True)
+        match = re.search(r"MLM(\d+)", r.url)
         if not match:
             return None
         product_id = f"MLM{match.group(1)}"
-        r = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
-        if r.status_code != 200:
+        item_res = requests.get(f"https://api.mercadolibre.com/items/{product_id}")
+        if item_res.status_code != 200:
             return None
-        return r.json().get("seller_id")
+        return item_res.json().get("seller_id")
     except:
         return None
+
     return r.json().get("seller_id")
 
 if boton_comparar and links_input:
